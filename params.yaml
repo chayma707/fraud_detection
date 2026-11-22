@@ -1,0 +1,56 @@
+# ============================================================
+# params.yaml  -  the ONE place where every setting lives.
+# Change a value here, run `dvc repro`, and DVC re-runs only the
+# stages that depend on what you changed (new data / model version).
+# ============================================================
+
+# Version number of the dataset. Increase it each time you create a new
+# dataset version (see src/data/update_dataDVC.py). Used for the git tag "v.<number>".
+data_version: 1
+
+data:
+  raw_path: data/raw/cresci_2017_users.csv
+  processed_dir: data/processed
+  target: is_fake            # column that contains the fraud label
+  positive_label: "1"        # value that means FRAUD / bot  ("auto" = guess it)
+  drop_columns: auto         # "auto" = IDs + leakage columns, or a list: [id, crawled_at]
+  min_rows: 500              # validation: minimum number of rows
+  min_minority_pct: 5        # validation: the rarest class must be at least 5 %
+
+preprocessing:
+  # --- structural cleaning + feature engineering
+  standardize: true          # case / spaces / yes-no / "N/A" tokens
+  fix_negatives: true        # impossible negative counts -> missing
+  drop_dups: true
+  max_cat: 30                # max distinct values for a "categorical" column
+  missing_flags: true
+  ratios: true
+  text: true
+  dates: true
+  # --- split + cleaning
+  test_size: 0.2
+  seed: 42
+  num_impute: median         # mean | median | mode | knn | ffill
+  cat_impute: mode           # mode | constant
+  knn_k: 5
+  out_method: zscore         # zscore | iqr | none
+  out_action: remove         # remove | cap
+  z_thr: 3.0
+  iqr_k: 1.5
+  max_remove_pct: 25
+  # --- transformation
+  log_skewed: true
+  scaling: standard          # standard | minmax | robust | none
+  encoding: one-hot          # one-hot | ordinal | frequency
+  discretize_cols: []
+  n_bins: 5
+  agg: null                  # or {cat: lang, num: followers_count, func: mean}
+
+selection:
+  use_selection: true
+  method: "Embedded: LASSO"  # Filter: correlation | Filter: mutual information | Wrapper: RFE | Embedded: LASSO | Embedded: Decision Tree
+  k: 15
+
+model:
+  name: Random Forest        # Random Forest | Logistic Regression | Decision Tree | Gradient Boosting
+  seed: 42

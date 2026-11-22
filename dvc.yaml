@@ -1,0 +1,45 @@
+# The pipeline: DVC runs a stage again ONLY if one of its deps / params changed.
+stages:
+  1-data_validation:
+    cmd: python src/data/data_validation.py
+    deps:
+      - src/data/data_validation.py
+      - data/raw
+    params:
+      - data
+    outs:
+      - reports/validation.json:
+          cache: false
+
+  2-prepare_data:
+    cmd: python src/data/prepare_data.py
+    deps:
+      - src/data/prepare_data.py
+      - src/data_loader.py
+      - src/cleaning.py
+      - src/features.py
+      - src/transform.py
+      - src/pipeline.py
+      - data/raw
+      - reports/validation.json
+    params:
+      - data
+      - preprocessing
+    outs:
+      - data/processed
+
+  3-train:
+    cmd: python src/models/train_model.py
+    deps:
+      - src/models/train_model.py
+      - src/model.py
+      - src/selection.py
+      - data/processed
+    params:
+      - selection
+      - model
+    outs:
+      - models/model.joblib
+    metrics:
+      - reports/metrics.json:
+          cache: false
