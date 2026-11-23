@@ -143,11 +143,15 @@ git init
 dvc init
 git config user.name "Your Name"
 git config user.email you@mail.com
+git remote add origin https://github.com/chayma707/fraud_detection.git
+git branch -M main
 copy data\raw\cresci_2017_users.csv data\dataset.csv        # macOS/Linux: cp
 dvc remote add -d localremote C:/dvc-storage                  # a folder OUTSIDE the project
 dvc add data/dataset.csv
 git add .
 git commit -m "Add initial dataset"
 git tag -a v1.0 -m "Initial dataset"
+git push -u origin main
+git push origin --tags
 dvc push
 ```

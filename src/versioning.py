@@ -113,9 +113,31 @@ def _md5_of_dvc_file() -> str | None:
     return m.group(1) if m else None
 
 
+def _git_push_remote() -> str | None:
+    rc, out = _run(["git", "remote"])
+    remotes = out.splitlines() if rc == 0 else []
+    if not remotes:
+        return None
+
+    rc, remote = _run(["git", "config", "--get", "remote.pushDefault"])
+    if rc == 0 and remote in remotes:
+        return remote
+
+    rc, upstream = _run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"])
+    if rc == 0:
+        upstream_remote = upstream.split("/", 1)[0]
+        if upstream_remote in remotes:
+            return upstream_remote
+
+    if "origin" in remotes:
+        return "origin"
+    return remotes[0] if len(remotes) == 1 else None
+
+
 def version_data(df: pd.DataFrame, params: dict, tag: str, message: str, push: bool = False) -> dict:
     """Save `df` as the new tracked dataset and record it: dvc add -> git add -> git commit -> git tag."""
-    result: dict = {"success": False, "tag": tag, "steps": [], "error": ""}
+    result: dict = {"success": False, "tag": tag, "steps": [], "error": "",
+                    "push_requested": push, "push_success": None, "push_error": "", "push_skipped": []}
     message = (message or "").strip() or f"Dataset version {tag}"
 
     def fail(msg: str) -> dict:
@@ -163,15 +185,30 @@ def version_data(df: pd.DataFrame, params: dict, tag: str, message: str, push: b
         return fail("`git tag` failed.")
 
     if push:
+        push_errors = []
         if status["dvc_remote"]:
-            step(["dvc", "push"])
+            if not step(["dvc", "push"]):
+                push_errors.append("DVC data push failed.")
         else:
             result["steps"].append({"command": "dvc push", "ok": False, "output": "skipped: no DVC remote configured"})
+            result["push_skipped"].append("DVC data (no DVC remote configured)")
+
         if status["git_remote"]:
-            step(["git", "push"])
-            step(["git", "push", "--tags"])
+            remote = _git_push_remote()
+            if remote is None:
+                result["steps"].append({"command": "git push", "ok": False,
+                                        "output": "could not determine a Git remote to push to"})
+                push_errors.append("Could not determine which Git remote to push to.")
+            else:
+                if not step(["git", "push", "--set-upstream", remote, "HEAD"]):
+                    push_errors.append("Git branch push failed.")
+                if not step(["git", "push", remote, tag]):
+                    push_errors.append(f"Git tag {tag} push failed.")
         else:
             result["steps"].append({"command": "git push", "ok": False, "output": "skipped: no Git remote configured"})
+            push_errors.append("No Git remote is configured; the commit and tag are only local.")
+        result["push_success"] = not push_errors
+        result["push_error"] = " ".join(push_errors)
 
     result.update(success=True, md5=md5, rows=int(len(df)), columns=int(df.shape[1]))
     return result

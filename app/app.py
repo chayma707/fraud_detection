@@ -968,6 +968,12 @@ with tabs[11]:
             if last["success"]:
                 st.success(f"Version **{last['tag']}** recorded: {last['rows']:,} rows x {last['columns']} columns, "
                            f"DVC hash `{last['md5']}`.")
+                if last.get("push_requested") and not last.get("push_success"):
+                    st.warning(f"The version is saved locally, but pushing failed: {last['push_error']}")
+                elif last.get("push_requested"):
+                    st.info("The Git commit and tag were pushed to the configured remote.")
+                if last.get("push_skipped"):
+                    st.caption("Not pushed: " + "; ".join(last["push_skipped"]) + ".")
             else:
                 st.error(last["error"])
             with st.expander("Commands executed by Python"):
@@ -988,8 +994,11 @@ with tabs[11]:
         msg = c2.text_input("Commit message", value="", key=f"msg_{REV}",
                             placeholder="e.g. median imputation + one-hot, 15 selected features")
         can_push = status["dvc_remote"] or status["git_remote"]
-        do_push = st.checkbox("Also push (dvc push / git push) when a remote exists", value=status["dvc_remote"],
+        do_push = st.checkbox("Also push DVC data and the Git commit/tag to configured remotes",
+                              value=status["dvc_remote"] or status["git_remote"],
                               disabled=not can_push)
+        if not status["git_remote"]:
+            st.info("No Git remote is configured. A saved version and tag will stay local until you add a GitHub remote.")
 
         def build_version_df(choice: str) -> pd.DataFrame:
             if choice.startswith("Model-ready data (all"):
